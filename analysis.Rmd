@@ -1,0 +1,170 @@
+---
+title: "Credit Card Analyses"
+author: "Yuelin Zou (yuelin3@illinois.edu)"
+date: "Insert Date Here"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    theme: default
+    toc: yes
+---
+
+```{r, setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE, fig.align = 'center')
+```
+
+```{r, load-packages, include = FALSE}
+# load packages
+library("tidyverse")
+library("caret")
+library("rpart")
+library("dplyr")
+```
+
+```{r make-data, warning = FALSE, message = FALSE}
+# read data and subset
+source("make-data.R")
+```
+
+```{r read-full-data, warning = FALSE, message = FALSE}
+# read full data
+cc = data.table::fread("data/cc.csv.gz")
+```
+
+```{r read-subset-data, warning = FALSE, message = FALSE}
+# read subset of data
+cc_sub = data.table::fread("data/cc-sub.csv")
+credit_data = read_csv("C:\\Users\\barry\\Desktop\\STAT432\\credit-analysis-main\\data-raw\\creditcard.csv\\creditcard.csv")
+```
+
+
+```{r, echo=FALSE}
+cc_clean = credit_data %>%mutate(Class = factor(ifelse(Class == 1, "fraud", "genuine"))) 
+```
+
+***
+
+## Abstract
+
+> This data set is about detecting fraudlent activities from a credit card transactions history.I am planning to use N-FOLD classfication KNN AND decision tree models to predict fraud activities. 
+
+***
+
+## Introduction
+
+Fraudulent Analytics is widely used in the finance industry. From this data set, at first glanced, the fraudulent seemed low, compare to geninue. However, to better predict the credit card score, we need to test it under different models. Some of the model, includings KNN, Decision Tree and Random Forest will be discussed.
+
+Noted, "The Class variable indicates whether or not a transaction is genuine or fraud. In the original data, these were encoded as 0 and 1 respectively." Therefore, we first work on this binary response.
+
+## Varibales
+
+- Time: Number of seconds elapsed between this transaction and the first transaction in the dataset
+
+- V1-V27: PCA Dimensionality reduction to protect user identities and sensitive features(v1-v28)
+
+- Amount: A Numecial variable that counts the numeber of the transaction
+
+- Classes: Categorical Variable. Either in **Fraudulent** or **Genuine**
+
+```{r}
+head(cc_sub,5)
+
+sum(cc_sub$Class == "fraud")
+
+
+boxplot(Amount~Class,data=cc_sub,main = 'Fraud VS Geniune')
+
+#plot(cc_sub$Class,cc_sub$Amount,main = 'Fraud VS Geniune')
+
+```
+
+- From the plot above, as well as the count of the fraud, we can see that fraudlent transcation amount is very small compare to the whole transaction data.
+
+```{r,echo=FALSE}
+set.seed(123)
+cc_sub$Class = factor(cc_sub$Class)
+
+#test-train split
+cc_idx = createDataPartition(cc$Class, p = 0.8, list = FALSE)
+cc_trn = cc[cc_idx, ]
+cc_tst = cc[-cc_idx, ]
+```
+
+
+## KNN MODEL, Decision Tree and RandomForest
+
+
+```{r,echo=FALSE}
+calc_misclass = function(actual, predicted) {
+  mean(actual != predicted)
+}
+```
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+library(rpart.plot)
+library(randomForest)
+credit_knn = knn3(Class ~ ., data = cc_trn,k=10)
+
+
+credit_tree = rpart(Class~.,data = cc_trn,cp=0.1,minsplit=10)
+
+credit_forest = randomForest(as.factor(Class)~.,data = cc_trn,ntree=50,mtry=2)
+
+
+
+```
+
+```{r,warning=FALSE,message=FALSE}
+library("caret")
+library("rpart")
+index_fold = caret::createFolds(cc_trn$Class, k = 5)
+
+vec = c(1:5)
+for (i in c(1:5)) {
+  val = cc_trn[index_fold[[i]], ]
+  est = cc_trn[-index_fold[[i]], ]
+  fit = rpart(Class ~ ., data = est, cp = 0.1, minsplit = 2)
+  vec[i] = mean(val$Class == predict(fit, val, type = "class"))
+}
+(mean = mean(vec))
+(sd = sd(vec))
+
+
+
+```
+Using the 5-fold Cross Validation Random Forest, we have a cross validation accuracy is 0.9990125 and standard error of cross-validated accuracy is 6.008752e-05
+
+
+
+
+
+
+
+
+
+- Plot of the decision Tree model
+
+```{r}
+rpart.plot(credit_tree)
+```
+
+- Plot of the random Forest Model
+```{r}
+
+varImpPlot(credit_forest)
+```
+
+### Modeling
+
+The modeling method is random forest with cp=0.1 and minsplit=2. 
+We use 5-fold Cross Validation to calculate cross validation accuracy and standard error of cross-validated accuracy. 
+I plot the decision Tree and Randorm Forest model, at V17 it seemed to be turning point.
+
+
+
+## Conclusion 
+Our cross validation accuracy is 0.9990125 and standard error of cross-validated accuracy is 6.008752e-05. This means that we have high accuarcy. aprroxiamtely 99.9%
+
+However, based on the data visualtion of the data set, I can say it is left skewed, one-siding extreme data set. It is not balanced, so the result can be biased.
+
